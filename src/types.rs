@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BMC {
+    pub name: String,
     pub vendor: String,
     pub address: String,
     pub username: Option<String>,

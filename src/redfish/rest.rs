@@ -18,10 +18,13 @@ use tokio::net::TcpStream;
 
 pub struct RestClient {
     address: String,
+    auth_info: String,
 }
 
 pub struct RestConfig {
     pub address: String,
+    pub username: String,
+    pub password: String,
 }
 
 #[derive(Error, Debug)]
@@ -68,17 +71,20 @@ impl RestClient {
         let port = url.port().unwrap_or(80);
         let address = format!("{}:{}", host, port);
 
-        Ok(RestClient { address })
+        Ok(RestClient {
+            address,
+            auth_info: "".to_string(),
+        })
     }
 
-    pub async fn get<T: DeserializeOwned>(&self, path: String) -> Result<T, RestError> {
+    pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, RestError> {
         let body = self.execute_request::<T>(Method::GET, path, None).await?;
         serde_json::from_reader(body.reader()).map_err(|e| RestError::Json(e.to_string()))
     }
 
     pub async fn put<T: DeserializeOwned + Serialize>(
         &self,
-        path: String,
+        path: &str,
         o: T,
     ) -> Result<T, RestError> {
         let input = serde_json::to_string(&o)?;
@@ -89,7 +95,7 @@ impl RestClient {
         serde_json::from_reader(body.reader()).map_err(|e| RestError::Json(e.to_string()))
     }
 
-    pub async fn delete<T: DeserializeOwned>(&self, path: String) -> Result<T, RestError> {
+    pub async fn delete<T: DeserializeOwned>(&self, path: &str) -> Result<T, RestError> {
         let body = self
             .execute_request::<T>(Method::DELETE, path, None)
             .await?;
@@ -98,7 +104,7 @@ impl RestClient {
 
     pub async fn patch<T: DeserializeOwned + Serialize>(
         &self,
-        path: String,
+        path: &str,
         o: T,
     ) -> Result<T, RestError> {
         let input = serde_json::to_string(&o)?;
@@ -112,7 +118,7 @@ impl RestClient {
     async fn execute_request<T: DeserializeOwned>(
         &self,
         method: Method,
-        path: String,
+        path: &str,
         data: Option<String>,
     ) -> Result<Bytes, RestError> {
         let schema = "http";
@@ -124,7 +130,7 @@ impl RestClient {
             .method(method)
             .uri(url)
             .header(CONTENT_TYPE, "application/json")
-            // .header(AUTHORIZATION, self.auth_info.to_string())
+            .header(AUTHORIZATION, self.auth_info.to_string())
             .body(Full::<Bytes>::new(Bytes::from(body)))
             .map_err(|e| RestError::InvalidConfig(e.to_string()))?;
 

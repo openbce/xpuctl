@@ -9,18 +9,13 @@ mod bluefield;
 mod rest;
 mod xpu;
 
-pub use xpu::{XPU, BMCVersion};
+pub use xpu::{discover, BMCVersion, XPU};
 
 #[async_trait]
 trait Redfish {
-    async fn connect(&self) -> Result<(), RedfishError>;
-    async fn change_password(&self) -> Result<(), RedfishError>;
+    async fn change_password(&self, passwd: String) -> Result<(), RedfishError>;
     async fn bmc_version(&self) -> Result<BMCVersion, RedfishError>;
 }
-
-
-
-
 
 #[derive(Error, Debug)]
 pub enum RedfishError {

@@ -5,6 +5,7 @@ use std::io;
 
 use types::Context;
 
+mod discover;
 mod list;
 mod redfish;
 mod types;
@@ -40,6 +41,8 @@ enum SubCommand {
         #[arg(long = "xpu", short = 'x')]
         xpu: usize,
     },
+    /// Discover all XPUs
+    Discover,
 }
 
 #[tokio::main]
@@ -54,7 +57,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .as_str(),
     );
 
-    let cxt: Context = toml::from_str(&contents).expect(
+    let mut cxt: Context = toml::from_str(&contents).expect(
         format!(
             "Failed to parse configuration file <{}>.",
             &args.options.config_file
@@ -62,7 +65,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .as_str(),
     );
 
+    for bmc in cxt.bmc.iter_mut() {
+        if bmc.password.is_none() {
+            bmc.password = Some(cxt.password.clone());
+        }
+
+        if bmc.username.is_none() {
+            bmc.username = Some(cxt.username.clone());
+        }
+    }
+
     match &args.subcommand {
+        SubCommand::Discover => discover::run(&cxt).await?,
         SubCommand::List => list::run(&cxt).await?,
         SubCommand::View { xpu } => view::run(&cxt, *xpu).await?,
     }

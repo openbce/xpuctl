@@ -62,3 +62,23 @@ impl XPU {
         Ok(xpu)
     }
 }
+
+pub async fn discover(bmc: &BMC) -> Result<(), RedfishError> {
+    let redfish = Box::new(Bluefield::new(bmc)?);
+
+    if redfish.bmc_version().await.is_ok() {
+        return Ok(());
+    }
+
+    // Try to change the default password.
+    let default_bmc = Bluefield::default_bmc(&bmc.name, &bmc.address);
+    let default_redfish = Box::new(Bluefield::new(&default_bmc)?);
+    default_redfish
+        .change_password(bmc.password.clone().unwrap())
+        .await?;
+
+    // Retry BMC version by the password.
+    let _ = redfish.bmc_version().await?;
+
+    Ok(())
+}
