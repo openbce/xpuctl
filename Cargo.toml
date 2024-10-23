@@ -1,0 +1,26 @@
+[package]
+name = "xpuctl"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tracing = "*"
+tracing-subscriber = { version = "*", features = ["env-filter", "local-time"] }
+
+clap = { version = "4.5.17", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = { version = "0.8"}
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+base64 = "0.22"
+thiserror = "1.0"
+serde_json = "*"
+
+hyper = { version = "1", features = ["full"] }
+hyper-tls = { version = "0.6"}
+bytes = "1"
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
+url = { version = "2", features = ["serde"] }
