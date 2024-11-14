@@ -1,18 +1,16 @@
-use std::io;
-
 use crate::redfish::{RedfishError, XPU};
 use crate::types::Context;
 
 pub async fn run(cxt: &Context) -> Result<(), RedfishError> {
     println!(
-        "{:<5}{:<10}{:<15}{:<10}{:<15}{:<15}{}",
+        "{:<20}{:<10}{:<15}{:<10}{:<15}{:<15}{}",
         "ID", "Status", "Vendor", "FW", "SN", "BMC", "Address"
     );
-    for (i, bmc) in cxt.bmc.iter().enumerate() {
+    for bmc in cxt.bmc.iter() {
         let xpu = XPU::new(bmc).await?;
         println!(
-            "{:<5}{:<10}{:<15}{:<10}{:<15}{:<15}{}",
-            i,
+            "{:<20}{:<10}{:<15}{:<10}{:<15}{:<15}{}",
+            xpu.bmc.name,
             xpu.status.to_string(),
             xpu.vendor,
             xpu.firmware_version,

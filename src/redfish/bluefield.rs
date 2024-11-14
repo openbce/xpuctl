@@ -21,8 +21,7 @@ impl Redfish for Bluefield {
         data.insert("Password", passwd);
         let data = serde_json::to_string(&data).unwrap();
 
-        self
-            .rest
+        self.rest
             .patch("/redfish/v1/AccountService/Accounts/root", data)
             .await
             .map_err(RedfishError::from)?;

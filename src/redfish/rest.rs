@@ -78,34 +78,20 @@ impl RestClient {
         Ok(body)
     }
 
-    pub async fn put(
-        &self,
-        path: &str,
-        o: String,
-    ) -> Result<String, RestError> {
-        let body = self
-            .execute_request(Method::PUT, path, Some(o))
-            .await?;
+    pub async fn put(&self, path: &str, o: String) -> Result<String, RestError> {
+        let body = self.execute_request(Method::PUT, path, Some(o)).await?;
 
         Ok(body)
     }
 
     pub async fn delete(&self, path: &str) -> Result<String, RestError> {
-        let body = self
-            .execute_request(Method::DELETE, path, None)
-            .await?;
+        let body = self.execute_request(Method::DELETE, path, None).await?;
 
         Ok(body)
     }
 
-    pub async fn patch(
-        &self,
-        path: &str,
-        o: String,
-    ) -> Result<String, RestError> {
-        let body = self
-            .execute_request(Method::PATCH, path, Some(o))
-            .await?;
+    pub async fn patch(&self, path: &str, o: String) -> Result<String, RestError> {
+        let body = self.execute_request(Method::PATCH, path, Some(o)).await?;
 
         Ok(body)
     }
