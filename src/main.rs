@@ -1,7 +1,9 @@
 use clap::{Parser, Subcommand};
+use std::env;
 use std::error::Error;
 use std::fs;
 use std::io;
+use std::path::PathBuf;
 
 use types::Context;
 
@@ -48,8 +50,20 @@ enum SubCommand {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
+    use std::path::Path;
 
-    let contents = fs::read_to_string(&args.options.config_file).expect(
+    let path = Path::new(&args.options.config_file);
+    let mut config_file = PathBuf::from("/");
+
+    for i in path.iter() {
+        if i == "~" {
+            config_file = config_file.join(env::var("HOME")?);
+        } else {
+            config_file = config_file.join(i);
+        }
+    }
+
+    let contents = fs::read_to_string(&config_file.to_str().unwrap()).expect(
         format!(
             "Failed to read configuration file <{}>.",
             &args.options.config_file
