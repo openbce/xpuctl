@@ -2,8 +2,9 @@ use clap::{Parser, Subcommand};
 use std::env;
 use std::error::Error;
 use std::fs;
-use std::io;
 use std::path::PathBuf;
+
+use tracing_subscriber::{filter::EnvFilter, filter::LevelFilter, fmt, prelude::*};
 
 use types::Context;
 
@@ -49,6 +50,29 @@ enum SubCommand {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let mut env_filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy()
+        .add_directive("tower=warn".parse()?)
+        .add_directive("rustls=warn".parse()?)
+        .add_directive("reqwest=info".parse()?)
+        .add_directive("hyper=info".parse()?)
+        .add_directive("h2=warn".parse()?);
+    // if config.debug != 0 {
+    //     env_filter = env_filter.add_directive(
+    //         match config.debug {
+    //             1 => LevelFilter::DEBUG,
+    //             _ => LevelFilter::TRACE,
+    //         }
+    //         .into(),
+    //     );
+    // }
+
+    tracing_subscriber::registry()
+        .with(fmt::Layer::default().compact().with_writer(std::io::stderr))
+        .with(env_filter)
+        .try_init()?;
+
     let args = Args::parse();
     use std::path::Path;
 

@@ -1,10 +1,6 @@
-use crate::redfish::{rest, Redfish};
+use crate::redfish::Redfish;
 use crate::types::BMC;
 use async_trait::async_trait;
-use bytes::Bytes;
-use hyper::Request;
-use std::collections::HashMap;
-use std::{io, sync::Arc};
 
 use super::rest::{RestClient, RestConfig};
 use super::xpu::BMCVersion;
@@ -21,20 +17,27 @@ const VENDOR: &str = "bluefield";
 #[async_trait]
 impl Redfish for Bluefield {
     async fn change_password(&self, passwd: String) -> Result<(), RedfishError> {
-        let data = format!("Password: {}", passwd);
+        let mut data = std::collections::HashMap::new();
+        data.insert("Password", passwd);
+        let data = serde_json::to_string(&data).unwrap();
 
-        self.rest
+        self
+            .rest
             .patch("/redfish/v1/AccountService/Accounts/root", data)
             .await
             .map_err(RedfishError::from)?;
+
         Ok(())
     }
 
     async fn bmc_version(&self) -> Result<BMCVersion, RedfishError> {
-        self.rest
+        let resp = self
+            .rest
             .get("redfish/v1/UpdateService/FirmwareInventory/BMC_Firmware")
             .await
-            .map_err(RedfishError::from)
+            .map_err(RedfishError::from)?;
+
+        serde_json::from_str(resp.as_str()).map_err(|e| RedfishError::Json(e.to_string()))
     }
 }
 

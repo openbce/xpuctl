@@ -13,6 +13,7 @@ pub enum XPUStatus {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct BMCVersion {
     pub description: String,
     pub id: String,
@@ -28,33 +29,33 @@ pub struct XPU {
     pub serial_number: String,
     pub firmware_version: String,
     pub bmc: BMC,
+    pub bmc_version: String,
 
     // The status of XPU
     pub status: XPUStatus,
 }
 
-impl fmt::Display for XPUStatus {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = match self {
-            XPUStatus::Error => "Error",
-            XPUStatus::Ready => "Ready",
-            XPUStatus::Unknown => "Unknown",
-        };
-
-        write!(f, "{}", s)
+impl ToString for XPUStatus {
+    fn to_string(&self) -> String {
+        match self {
+            XPUStatus::Error => "Error".to_string(),
+            XPUStatus::Ready => "Ready".to_string(),
+            XPUStatus::Unknown => "Unknown".to_string(),
+        }
     }
 }
 
 impl XPU {
     pub async fn new(bmc: &BMC) -> Result<Self, RedfishError> {
-        let redfish = Box::new(Bluefield::new(bmc)?);
+        let redfish: Box<Bluefield> = Box::new(Bluefield::new(bmc)?);
         let bmc_ver = redfish.bmc_version().await?;
 
-        let mut xpu = XPU {
+        let xpu = XPU {
             redfish,
             vendor: bmc.vendor.clone(),
             serial_number: "-".to_string(),
             firmware_version: "-".to_string(),
+            bmc_version: bmc_ver.version,
             bmc: bmc.clone(),
             status: XPUStatus::Ready,
         };

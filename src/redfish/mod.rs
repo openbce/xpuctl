@@ -23,6 +23,8 @@ pub enum RedfishError {
     RestError(String),
     #[error("{0}")]
     IOError(String),
+    #[error("{0}")]
+    Json(String),
 }
 
 impl From<RestError> for RedfishError {

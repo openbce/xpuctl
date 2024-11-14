@@ -1,24 +1,16 @@
-use std::fmt;
-use std::fmt::{Display, Formatter};
-use url::Url;
-
-use http_body_util::{BodyExt, Empty, Full};
-use hyper::body::Bytes;
-use hyper::header::{AUTHORIZATION, CONTENT_TYPE};
-use hyper::http::StatusCode;
-use hyper::{body::Buf, Request};
-use hyper::{Method, Response};
-use hyper_tls::HttpsConnector;
-use hyper_util::rt::TokioIo;
+use bytes::Bytes;
+use http::Method;
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
-use tokio::net::TcpStream;
+use url::Url;
+
+use reqwest::{header::HeaderValue, header::ACCEPT, header::CONTENT_TYPE};
 
 pub struct RestClient {
     address: String,
-    auth_info: String,
+    user: String,
+    password: String,
 }
 
 pub struct RestConfig {
@@ -43,14 +35,16 @@ pub enum RestError {
     InvalidConfig(String),
 }
 
-impl From<hyper::Error> for RestError {
-    fn from(value: hyper::Error) -> Self {
+impl From<reqwest::Error> for RestError {
+    fn from(value: reqwest::Error) -> Self {
+        tracing::debug!("{:?}", value);
         RestError::Http(value.to_string())
     }
 }
 
 impl From<serde_json::Error> for RestError {
     fn from(value: serde_json::Error) -> Self {
+        tracing::debug!("{:?}", value);
         RestError::Json(value.to_string())
     }
 }
@@ -68,91 +62,83 @@ impl RestClient {
         let host = url
             .host_str()
             .ok_or(RestError::InvalidConfig("invalid BMC host".to_string()))?;
-        let port = url.port().unwrap_or(80);
+        let port = url.port().unwrap_or(443);
         let address = format!("{}:{}", host, port);
 
         Ok(RestClient {
             address,
-            auth_info: "".to_string(),
+            user: config.username.clone(),
+            password: config.password.clone(),
         })
     }
 
-    pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, RestError> {
-        let body = self.execute_request::<T>(Method::GET, path, None).await?;
-        serde_json::from_reader(body.reader()).map_err(|e| RestError::Json(e.to_string()))
+    pub async fn get(&self, path: &str) -> Result<String, RestError> {
+        let body = self.execute_request(Method::GET, path, None).await?;
+
+        Ok(body)
     }
 
-    pub async fn put<T: DeserializeOwned + Serialize>(
+    pub async fn put(
         &self,
         path: &str,
-        o: T,
-    ) -> Result<T, RestError> {
-        let input = serde_json::to_string(&o)?;
+        o: String,
+    ) -> Result<String, RestError> {
         let body = self
-            .execute_request::<T>(Method::PUT, path, Some(input))
+            .execute_request(Method::PUT, path, Some(o))
             .await?;
 
-        serde_json::from_reader(body.reader()).map_err(|e| RestError::Json(e.to_string()))
+        Ok(body)
     }
 
-    pub async fn delete<T: DeserializeOwned>(&self, path: &str) -> Result<T, RestError> {
+    pub async fn delete(&self, path: &str) -> Result<String, RestError> {
         let body = self
-            .execute_request::<T>(Method::DELETE, path, None)
+            .execute_request(Method::DELETE, path, None)
             .await?;
-        serde_json::from_reader(body.reader()).map_err(|e| RestError::Json(e.to_string()))
+
+        Ok(body)
     }
 
-    pub async fn patch<T: DeserializeOwned + Serialize>(
+    pub async fn patch(
         &self,
         path: &str,
-        o: T,
-    ) -> Result<T, RestError> {
-        let input = serde_json::to_string(&o)?;
+        o: String,
+    ) -> Result<String, RestError> {
         let body = self
-            .execute_request::<T>(Method::PATCH, path, Some(input))
+            .execute_request(Method::PATCH, path, Some(o))
             .await?;
 
-        serde_json::from_reader(body.reader()).map_err(|e| RestError::Json(e.to_string()))
+        Ok(body)
     }
 
-    async fn execute_request<T: DeserializeOwned>(
+    async fn execute_request(
         &self,
         method: Method,
         path: &str,
         data: Option<String>,
-    ) -> Result<Bytes, RestError> {
-        let schema = "http";
+    ) -> Result<String, RestError> {
+        let schema = "https";
         let url = format!("{}://{}/{}", schema, self.address, path.trim_matches('/'));
 
-        let body = data.unwrap_or(String::new());
+        let body = Bytes::from(data.clone().unwrap_or(String::new()));
+        tracing::debug!(
+            "Method: {method}, URL: {url}, Auth: <{0}/{1}>, Body: <{2}>",
+            self.user,
+            self.password,
+            data.unwrap_or(String::new())
+        );
 
-        let req = hyper::Request::builder()
-            .method(method)
-            .uri(url)
-            .header(CONTENT_TYPE, "application/json")
-            .header(AUTHORIZATION, self.auth_info.to_string())
-            .body(Full::<Bytes>::new(Bytes::from(body)))
-            .map_err(|e| RestError::InvalidConfig(e.to_string()))?;
+        let client = reqwest::ClientBuilder::new()
+            .danger_accept_invalid_certs(true)
+            .build()?;
+        let req = client
+            .request(method, url)
+            .header(ACCEPT, HeaderValue::from_static("application/json"))
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .body(body)
+            .basic_auth(&self.user, Some(self.password.clone()))
+            .build()?;
+        let resp = client.execute(req).await?;
 
-        let stream = TcpStream::connect(self.address.clone()).await?;
-        let io = TokioIo::new(stream);
-
-        let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
-
-        tokio::task::spawn(async move {
-            if let Err(err) = conn.await {
-                tracing::error!("Failed to connect to yangtze-apiserver: {:?}", err);
-            }
-        });
-
-        let resp = sender.send_request(req).await?;
-
-        if resp.status() != StatusCode::OK {
-            return Err(RestError::Http(format!("{}", resp.status())));
-        }
-
-        let body = resp.collect().await?;
-
-        Ok(body.to_bytes())
+        Ok(resp.text().await?)
     }
 }
